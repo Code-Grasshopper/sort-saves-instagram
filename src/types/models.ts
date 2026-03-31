@@ -39,6 +39,7 @@ export type PostInput = {
   notes: string;
   manualTags: string;
   categoryIds: number[];
+  createdAt?: string;
 };
 
 export type Post = {
@@ -91,4 +92,5 @@ export type CategorySuggestion = {
   categoryNames: string[];
   reason: string;
   matchedSignals?: string[];
+  needsReview?: boolean;
 };

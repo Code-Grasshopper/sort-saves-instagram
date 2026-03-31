@@ -178,7 +178,7 @@ export default function PostDetailScreen() {
         caption: draft.caption,
         manualTags: draft.tagsText,
         categories: categories.map((category) => category.name),
-        allowNewCategory: categories.length === 0
+        allowNewCategory: true
       });
 
       const normalizedNames = nextSuggestion.categoryNames.map(normalizeSuggestedCategoryName);
@@ -193,6 +193,13 @@ export default function PostDetailScreen() {
 
       const categoryIds = await Promise.all(normalizedNames.map((name) => ensureCategory(name)));
       ensureCategoryIdsSelected(categoryIds);
+
+      if (nextSuggestion.needsReview && !draft.notes.trim()) {
+        updateField(
+          "notes",
+          "Авто-категория считает, что посту может понадобиться новая или уточненная тема. Проверьте карточку и при желании дополните описание."
+        );
+      }
     } catch (error) {
       Alert.alert(
         "Не удалось подобрать категории",

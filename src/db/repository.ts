@@ -231,6 +231,29 @@ export async function getPostById(db: SQLiteDatabase, id: number): Promise<Post 
   return row ? mapPost(row) : null;
 }
 
+export async function getExistingPostUrls(db: SQLiteDatabase, urls: string[]) {
+  const normalized = [...new Set(urls.map((url) => url.trim()).filter(Boolean))];
+  const found = new Set<string>();
+
+  for (let index = 0; index < normalized.length; index += 200) {
+    const chunk = normalized.slice(index, index + 200);
+
+    if (!chunk.length) {
+      continue;
+    }
+
+    const placeholders = chunk.map(() => "?").join(", ");
+    const rows = await db.getAllAsync<{ url: string }>(
+      `SELECT url FROM posts WHERE url IN (${placeholders})`,
+      ...chunk
+    );
+
+    rows.forEach((row) => found.add(row.url));
+  }
+
+  return found;
+}
+
 async function syncPostCategories(db: SQLiteDatabase, postId: number, categoryIds: number[]) {
   await db.runAsync(`DELETE FROM post_categories WHERE post_id = ?`, postId);
 
@@ -252,7 +275,8 @@ export async function savePost(db: SQLiteDatabase, input: PostInput) {
     imageUrl: input.imageUrl.trim(),
     notes: input.notes.trim(),
     manualTags: input.manualTags.trim(),
-    categoryIds: input.categoryIds
+    categoryIds: input.categoryIds,
+    createdAt: input.createdAt?.trim() || ""
   };
 
   if (!payload.title && !payload.caption && !payload.url) {
@@ -280,19 +304,34 @@ export async function savePost(db: SQLiteDatabase, input: PostInput) {
       );
       postId = input.id;
     } else {
-      const result = await db.runAsync(
-        `
-          INSERT INTO posts (title, caption, author, url, image_url, notes, manual_tags)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `,
-        payload.title,
-        payload.caption,
-        payload.author,
-        payload.url,
-        payload.imageUrl,
-        payload.notes,
-        payload.manualTags
-      );
+      const result = payload.createdAt
+        ? await db.runAsync(
+            `
+              INSERT INTO posts (title, caption, author, url, image_url, notes, manual_tags, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `,
+            payload.title,
+            payload.caption,
+            payload.author,
+            payload.url,
+            payload.imageUrl,
+            payload.notes,
+            payload.manualTags,
+            payload.createdAt
+          )
+        : await db.runAsync(
+            `
+              INSERT INTO posts (title, caption, author, url, image_url, notes, manual_tags)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+            `,
+            payload.title,
+            payload.caption,
+            payload.author,
+            payload.url,
+            payload.imageUrl,
+            payload.notes,
+            payload.manualTags
+          );
       postId = result.lastInsertRowId;
     }
 

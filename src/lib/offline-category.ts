@@ -27,6 +27,7 @@ type RankedCategory = {
 type SignalBag = {
   normalizedText: string;
   tokens: string[];
+  rawTokens: string[];
   hashtagTokens: string[];
   rawHashtags: string[];
 };
@@ -35,6 +36,30 @@ const fallbackCategoryName = "Идеи";
 const maxCategorySuggestions = 3;
 const minimumStrongScore = 8;
 const minimumWeakScore = 4;
+
+const stopWords = new Set([
+  "это",
+  "этот",
+  "эта",
+  "для",
+  "как",
+  "что",
+  "или",
+  "про",
+  "под",
+  "над",
+  "без",
+  "the",
+  "and",
+  "for",
+  "with",
+  "from",
+  "your",
+  "save",
+  "saved",
+  "post",
+  "reel"
+]);
 
 const knownTokenBreaks = [
   "samsung",
@@ -78,8 +103,8 @@ const taxonomy: TaxonomyCategory[] = [
   {
     name: "Кафе",
     aliases: ["Рестораны", "Кофейни", "Заведения"],
-    keywords: ["кафе", "ресторан", "кофейня", "меню", "бар", "бранч", "заведение", "дегустация"],
-    hashtags: ["гдевкуснопоесть", "coffeetime", "restaurant"],
+    keywords: ["кафе", "ресторан", "кофейня", "меню", "бар", "бранч", "заведение"],
+    hashtags: ["restaurant", "coffeetime"],
     reason: "Похоже на подборку мест, кафе или ресторанов."
   },
   {
@@ -92,14 +117,14 @@ const taxonomy: TaxonomyCategory[] = [
   {
     name: "Маршруты",
     aliases: ["Гайды", "Локации", "Места"],
-    keywords: ["куда сходить", "локация", "место", "гид", "спот", "район", "маршрут", "обзор города"],
+    keywords: ["куда сходить", "локация", "место", "гид", "спот", "маршрут", "обзор города"],
     hashtags: ["cityguide", "местадня"],
     reason: "Похоже на подборку мест или городской маршрут."
   },
   {
     name: "Фитнес",
     aliases: ["Тренировки", "Спорт", "Зал"],
-    keywords: ["тренировка", "упражнение", "фитнес", "кардио", "силовая", "зал", "мышцы", "бег"],
+    keywords: ["тренировка", "упражнение", "фитнес", "кардио", "силовая", "зал", "бег", "мышцы"],
     hashtags: ["workout", "fitness", "gym"],
     reason: "Контент про спорт и тренировки."
   },
@@ -134,21 +159,21 @@ const taxonomy: TaxonomyCategory[] = [
   {
     name: "Покупки",
     aliases: ["Находки", "Товары", "Wishlist"],
-    keywords: ["покупка", "товар", "скидка", "распродажа", "обзор", "находка", "маркетплейс", "wildberries", "ozon"],
-    hashtags: ["находкидня", "shopping", "wishlist"],
+    keywords: ["покупка", "товар", "скидка", "распродажа", "обзор", "находка", "wildberries", "ozon"],
+    hashtags: ["shopping", "wishlist"],
     reason: "Контент про покупки, товары и находки."
   },
   {
     name: "Дом",
     aliases: ["Интерьер", "Декор", "Уют"],
-    keywords: ["интерьер", "декор", "уют", "дом", "ремонт", "мебель", "гостиная", "спальня", "организация дома"],
+    keywords: ["интерьер", "декор", "уют", "дом", "ремонт", "мебель", "гостиная", "спальня"],
     hashtags: ["homedecor", "interior"],
     reason: "Контент про дом, интерьер и декор."
   },
   {
     name: "Организация",
     aliases: ["Порядок", "Планирование", "Системы"],
-    keywords: ["организация", "порядок", "планирование", "чеклист", "расписание", "трекер", "система", "продуктивность"],
+    keywords: ["организация", "порядок", "планирование", "чеклист", "расписание", "трекер", "система"],
     hashtags: ["planner", "organization"],
     reason: "Контент про порядок, системы и планирование."
   },
@@ -176,7 +201,7 @@ const taxonomy: TaxonomyCategory[] = [
   {
     name: "Книги",
     aliases: ["Чтение", "Литература"],
-    keywords: ["книга", "чтение", "автор", "роман", "литература", "нонфикшн", "подборка книг"],
+    keywords: ["книга", "чтение", "автор", "роман", "литература", "нонфикшн"],
     hashtags: ["books", "reading"],
     reason: "Контент про книги и чтение."
   },
@@ -190,7 +215,7 @@ const taxonomy: TaxonomyCategory[] = [
   {
     name: "Бизнес",
     aliases: ["Предпринимательство", "Стартап"],
-    keywords: ["бизнес", "клиент", "продукт", "стартап", "предприниматель", "команда", "рост бизнеса", "продажи"],
+    keywords: ["бизнес", "клиент", "продукт", "стартап", "предприниматель", "команда", "продажи"],
     hashtags: ["business", "startup"],
     reason: "Контент про бизнес и предпринимательство."
   },
@@ -204,21 +229,21 @@ const taxonomy: TaxonomyCategory[] = [
   {
     name: "Финансы",
     aliases: ["Деньги", "Бюджет", "Инвестиции"],
-    keywords: ["финансы", "деньги", "бюджет", "инвестиции", "доход", "расход", "капитал", "накопления"],
+    keywords: ["финансы", "деньги", "бюджет", "инвестиции", "доход", "расход", "капитал"],
     hashtags: ["finance", "money"],
     reason: "Контент про деньги и личные финансы."
   },
   {
     name: "Техника",
     aliases: ["Гаджеты", "Электроника", "Девайсы"],
-    keywords: ["техника", "гаджет", "электроника", "девайс", "обзор техники", "samsung", "xiaomi", "apple", "huawei"],
+    keywords: ["техника", "гаджет", "электроника", "девайс", "samsung", "xiaomi", "apple", "huawei"],
     hashtags: ["tech", "gadgets", "electronics"],
     reason: "Контент про гаджеты, технику и электронику."
   },
   {
     name: "Смартфоны",
     aliases: ["Телефоны", "Мобильные"],
-    keywords: ["смартфон", "телефон", "iphone", "android", "galaxy", "samsung", "redmi", "pixel", "камера телефона"],
+    keywords: ["смартфон", "телефон", "iphone", "android", "galaxy", "samsung", "redmi", "pixel"],
     hashtags: ["smartphone", "android", "iphone"],
     reason: "Контент явно связан со смартфонами."
   },
@@ -274,7 +299,7 @@ const taxonomy: TaxonomyCategory[] = [
   {
     name: "Сад",
     aliases: ["Растения", "Цветы", "Огород"],
-    keywords: ["растение", "цветок", "сад", "огород", "полив", "грунт", "лист", "рассада"],
+    keywords: ["растение", "цветок", "сад", "огород", "полив", "грунт", "листья"],
     hashtags: ["plants", "garden"],
     reason: "Контент про растения и сад."
   },
@@ -361,18 +386,24 @@ function tokenizeText(value: string) {
     .filter((token) => token.length >= 2);
 }
 
+function rawTokenizeText(value: string) {
+  return normalizeText(value)
+    .split(/\s+/)
+    .flatMap(splitByKnownSegments)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2);
+}
+
 function extractSignals(input: SuggestInput): SignalBag {
   const rawText = [input.title, input.caption, input.manualTags].filter(Boolean).join(" ");
   const rawHashtags = Array.from(rawText.matchAll(/#[\p{L}\p{N}_-]+/gu), (match) => match[0].slice(1));
-  const hashtagTokens = rawHashtags
-    .flatMap(splitCompoundHashtag)
-    .flatMap((part) => tokenizeText(part));
-  const tokens = tokenizeText(rawText);
+  const hashtagRawTokens = rawHashtags.flatMap(splitCompoundHashtag);
 
   return {
     normalizedText: normalizeText(rawText),
-    tokens: unique(tokens),
-    hashtagTokens: unique(hashtagTokens),
+    tokens: unique(tokenizeText(rawText)),
+    rawTokens: unique(rawTokenizeText(rawText)),
+    hashtagTokens: unique(hashtagRawTokens.flatMap((part) => tokenizeText(part))),
     rawHashtags: unique(rawHashtags.map((item) => normalizeText(item)).filter(Boolean))
   };
 }
@@ -452,6 +483,7 @@ function buildExistingProfile(categoryName: string): TaxonomyCategory {
   const normalizedCategoryName = normalizeText(categoryName);
   const taxonomyMatch = taxonomy.find((item) => {
     const names = [item.name, ...item.aliases].map((entry) => normalizeText(entry));
+
     return names.some(
       (entry) =>
         entry === normalizedCategoryName ||
@@ -481,7 +513,9 @@ function buildExistingProfile(categoryName: string): TaxonomyCategory {
 }
 
 function chooseTopRanked(ranked: RankedCategory[], limit = maxCategorySuggestions, minBaseScore = minimumWeakScore) {
-  const withScore = ranked.filter((item) => item.score >= minBaseScore).sort((left, right) => right.score - left.score);
+  const withScore = ranked
+    .filter((item) => item.score >= minBaseScore)
+    .sort((left, right) => right.score - left.score);
 
   if (!withScore.length) {
     return [];
@@ -493,30 +527,71 @@ function chooseTopRanked(ranked: RankedCategory[], limit = maxCategorySuggestion
   return withScore.filter((item) => item.score >= minScore).slice(0, limit);
 }
 
-function buildReason(categoryNames: string[], matches: string[], fallbackReason: string) {
-  if (categoryNames.length > 0 && matches.length > 0) {
-    return `Подобраны темы: ${categoryNames.join(", ")}. Сигналы: ${matches.slice(0, 4).join(", ")}.`;
+function formatCategoryWord(word: string) {
+  if (/^(ai|ui|ux)$/i.test(word)) {
+    return word.toUpperCase();
   }
 
-  if (categoryNames.length > 0) {
-    return `Подобраны темы: ${categoryNames.join(", ")}.`;
-  }
-
-  return fallbackReason;
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 }
 
-function inferNewCategories(signals: SignalBag, limit: number) {
-  const ranked = taxonomy.map((category) => scoreCategory(signals, category));
-  return chooseTopRanked(ranked, limit, minimumWeakScore);
-}
+function deriveEmergingCategory(signals: SignalBag, input: SuggestInput, inferred: RankedCategory[]) {
+  const reserved = new Set<string>();
 
-function matchExistingCategories(signals: SignalBag, categories: string[], limit: number) {
-  const ranked = categories.map((categoryName) => {
-    const profile = buildExistingProfile(categoryName);
-    return scoreCategory(signals, profile);
+  taxonomy.forEach((item) => {
+    [item.name, ...item.aliases, ...item.keywords, ...(item.hashtags ?? [])]
+      .flatMap((entry) => rawTokenizeText(entry))
+      .map((entry) => stemToken(entry))
+      .forEach((entry) => reserved.add(entry));
   });
 
-  return chooseTopRanked(ranked, limit, minimumWeakScore);
+  input.categories
+    .flatMap((entry) => rawTokenizeText(entry))
+    .map((entry) => stemToken(entry))
+    .forEach((entry) => reserved.add(entry));
+
+  inferred
+    .flatMap((entry) => rawTokenizeText(entry.categoryName))
+    .map((entry) => stemToken(entry))
+    .forEach((entry) => reserved.add(entry));
+
+  const scores = new Map<string, number>();
+
+  signals.rawHashtags.flatMap(splitCompoundHashtag).forEach((token) => {
+    const stemmed = stemToken(token);
+
+    if (token.length < 3 || stopWords.has(token) || reserved.has(stemmed)) {
+      return;
+    }
+
+    scores.set(token, (scores.get(token) ?? 0) + 4);
+  });
+
+  signals.rawTokens.forEach((token) => {
+    const stemmed = stemToken(token);
+
+    if (token.length < 3 || stopWords.has(token) || reserved.has(stemmed)) {
+      return;
+    }
+
+    scores.set(token, (scores.get(token) ?? 0) + 1);
+  });
+
+  const picked = [...scores.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 2)
+    .map(([token]) => formatCategoryWord(token));
+
+  if (!picked.length) {
+    return null;
+  }
+
+  return {
+    categoryName: picked.join(" "),
+    score: minimumStrongScore - 1,
+    matches: picked,
+    fallbackReason: "Похоже, в системе нет близкой темы. Лучше проверить карточку и при желании уточнить новую категорию."
+  };
 }
 
 function mergeRanked(existing: RankedCategory[], inferred: RankedCategory[], limit: number) {
@@ -534,22 +609,67 @@ function mergeRanked(existing: RankedCategory[], inferred: RankedCategory[], lim
   return [...merged.values()].sort((left, right) => right.score - left.score).slice(0, limit);
 }
 
+function buildReason(categoryNames: string[], matches: string[], fallbackReason: string, needsReview: boolean) {
+  const core = categoryNames.length > 0
+    ? `Подобраны темы: ${categoryNames.join(", ")}.`
+    : fallbackReason;
+  const signals = matches.length ? ` Сигналы: ${matches.slice(0, 4).join(", ")}.` : "";
+  const review = needsReview
+    ? " Похоже, посту нужна новая или уточненная тема: проверьте карточку и при желании отредактируйте категории."
+    : "";
+
+  return `${core}${signals}${review}`.trim();
+}
+
+function inferNewCategories(signals: SignalBag, input: SuggestInput, limit: number) {
+  const inferred = chooseTopRanked(taxonomy.map((category) => scoreCategory(signals, category)), limit, minimumWeakScore);
+  const emerging = deriveEmergingCategory(signals, input, inferred);
+
+  if (emerging && !inferred.some((item) => normalizeText(item.categoryName) === normalizeText(emerging.categoryName))) {
+    return [emerging, ...inferred].slice(0, limit);
+  }
+
+  return inferred;
+}
+
+function matchExistingCategories(signals: SignalBag, categories: string[], limit: number) {
+  const ranked = categories.map((categoryName) => {
+    const profile = buildExistingProfile(categoryName);
+    return scoreCategory(signals, profile);
+  });
+
+  return chooseTopRanked(ranked, limit, minimumWeakScore);
+}
+
 export function suggestCategoryOffline(input: SuggestInput): CategorySuggestion {
   const limit = input.maxSuggestions ?? maxCategorySuggestions;
   const signals = extractSignals(input);
-  const inferred = inferNewCategories(signals, limit);
+  const inferred = inferNewCategories(signals, input, limit);
+  const topInferredScore = inferred[0]?.score ?? 0;
 
   if (!input.categories.length) {
-    const chosen = inferred.length ? inferred : [{ categoryName: fallbackCategoryName, score: 0, matches: [], fallbackReason: "Явных сигналов мало, поэтому выбрана универсальная тема." }];
+    const chosen = inferred.length
+      ? inferred
+      : [
+          {
+            categoryName: fallbackCategoryName,
+            score: 0,
+            matches: [],
+            fallbackReason: "Явных сигналов мало, поэтому выбрана универсальная тема."
+          }
+        ];
+    const needsReview = chosen[0].score < minimumStrongScore;
 
     return {
       categoryNames: chosen.map((item) => item.categoryName),
       reason: buildReason(
         chosen.map((item) => item.categoryName),
         chosen.flatMap((item) => item.matches),
-        chosen[0].fallbackReason
+        chosen[0].fallbackReason,
+        needsReview
       ),
-      matchedSignals: unique(chosen.flatMap((item) => item.matches)).slice(0, 6)
+      matchedSignals: unique(chosen.flatMap((item) => item.matches)).slice(0, 6),
+      needsReview
     };
   }
 
@@ -557,40 +677,45 @@ export function suggestCategoryOffline(input: SuggestInput): CategorySuggestion 
   const strongExisting = existing.filter((item) => item.score >= minimumStrongScore);
   const hasComplementaryInference = inferred.some(
     (item) =>
-      item.score >= minimumStrongScore &&
+      item.score >= minimumStrongScore - 1 &&
       !strongExisting.some((existingItem) => normalizeText(existingItem.categoryName) === normalizeText(item.categoryName))
   );
+
   const shouldAddNew =
     input.allowNewCategory ||
     !strongExisting.length ||
     hasComplementaryInference ||
-    (inferred[0]?.score ?? 0) > ((strongExisting[0]?.score ?? 0) + 2);
+    topInferredScore >= ((strongExisting[0]?.score ?? 0) + 1);
 
-  const chosen = shouldAddNew
-    ? mergeRanked(strongExisting, inferred, limit)
-    : strongExisting.slice(0, limit);
+  const chosen = shouldAddNew ? mergeRanked(strongExisting, inferred, limit) : strongExisting.slice(0, limit);
 
   if (!chosen.length) {
-    const fallback = inferred.length ? inferred : [{ categoryName: fallbackCategoryName, score: 0, matches: [], fallbackReason: "Явных сигналов мало, поэтому выбрана универсальная тема." }];
-
     return {
-      categoryNames: fallback.map((item) => item.categoryName),
+      categoryNames: [fallbackCategoryName],
       reason: buildReason(
-        fallback.map((item) => item.categoryName),
-        fallback.flatMap((item) => item.matches),
-        fallback[0].fallbackReason
+        [fallbackCategoryName],
+        [],
+        "Явных совпадений с текущими категориями не нашлось.",
+        true
       ),
-      matchedSignals: unique(fallback.flatMap((item) => item.matches)).slice(0, 6)
+      matchedSignals: [],
+      needsReview: true
     };
   }
+
+  const needsReview =
+    chosen[0].score < minimumStrongScore ||
+    chosen.some((item) => !input.categories.some((category) => normalizeText(category) === normalizeText(item.categoryName)));
 
   return {
     categoryNames: chosen.map((item) => item.categoryName),
     reason: buildReason(
       chosen.map((item) => item.categoryName),
       chosen.flatMap((item) => item.matches),
-      chosen[0].fallbackReason
+      chosen[0].fallbackReason,
+      needsReview
     ),
-    matchedSignals: unique(chosen.flatMap((item) => item.matches)).slice(0, 6)
+    matchedSignals: unique(chosen.flatMap((item) => item.matches)).slice(0, 6),
+    needsReview
   };
 }

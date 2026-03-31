@@ -35,6 +35,7 @@ export async function initializeDatabase(db: SQLiteDatabase) {
 
     CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author);
+    CREATE INDEX IF NOT EXISTS idx_posts_url ON posts(url);
     CREATE INDEX IF NOT EXISTS idx_categories_name ON categories(name);
   `);
 }

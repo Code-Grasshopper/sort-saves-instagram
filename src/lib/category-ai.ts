@@ -31,7 +31,13 @@ export function normalizeSuggestedCategoryName(value: string) {
   }
 
   return words
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .map((word) => {
+      if (/^(ai|ui|ux)$/i.test(word)) {
+        return word.toUpperCase();
+      }
+
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
     .join(" ");
 }
 
@@ -48,13 +54,14 @@ export function pickAutoCategoryEmoji(name: string) {
   if (/(идея|вдохнов|мотивац|цитат|саморазвит)/i.test(normalized)) return "💡";
   if (/(книга|обуч|курс|знани|учеб)/i.test(normalized)) return "📚";
   if (/(покупк|товар|бренд|магазин|стиль|образ)/i.test(normalized)) return "🛍️";
-  if (/(кино|фильм|сериал|видео|музык|reels)/i.test(normalized)) return "🎬";
-  if (/(дом|интерьер|декор|уют|ремонт|мебель)/i.test(normalized)) return "🪴";
+  if (/(кино|фильм|сериал|видео|музык|reels|съемк|монтаж)/i.test(normalized)) return "🎬";
+  if (/(дом|интерьер|декор|уют|ремонт|мебель|растени)/i.test(normalized)) return "🪴";
   if (/(красот|бьюти|уход|кожа|макияж|волос)/i.test(normalized)) return "💄";
-  if (/(технолог|гаджет|техник|ai|ии|смартфон|android|iphone|apple|samsung)/i.test(normalized)) {
+  if (/(технолог|гаджет|техник|смартфон|android|iphone|apple|samsung|xiaomi)/i.test(normalized)) {
     return "📱";
   }
   if (/(лайфхак|фишк|совет|трюк)/i.test(normalized)) return "🧠";
+  if (/(маркетинг|smm|контент|бренд|аудитор)/i.test(normalized)) return "📈";
 
   return "✨";
 }
