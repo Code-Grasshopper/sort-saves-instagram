@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "InstaSort",
+    "slug": "instasort",
+    "scheme": "instasort",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-router"
+    ],
+    "android": {
+      "package": "com.fil.instasort",
+      "minSdkVersion": 29,
+      "softwareKeyboardLayoutMode": "pan"
+    },
+    "ios": {
+      "bundleIdentifier": "com.fil.instasort"
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
