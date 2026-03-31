@@ -17,10 +17,14 @@ import {
 import { CategoryChip } from "@/components/CategoryChip";
 import { EmptyState } from "@/components/EmptyState";
 import { ScreenContainer } from "@/components/ScreenContainer";
-import { saveCategory, deletePost, savePost } from "@/db/repository";
+import { deletePost, saveCategory, savePost } from "@/db/repository";
 import { useCategories } from "@/hooks/useCategories";
 import { usePostDetail } from "@/hooks/usePostDetail";
-import { pickAutoCategoryColor, pickAutoCategoryEmoji, normalizeSuggestedCategoryName } from "@/lib/category-ai";
+import {
+  normalizeSuggestedCategoryName,
+  pickAutoCategoryColor,
+  pickAutoCategoryEmoji
+} from "@/lib/category-ai";
 import { formatRelativeDate } from "@/lib/date";
 import { suggestCategoryOffline } from "@/lib/offline-category";
 import { extractTags } from "@/lib/validation";
@@ -61,10 +65,7 @@ export default function PostDetailScreen() {
     }
   }, [post]);
 
-  const title = useMemo(
-    () => post?.title || post?.caption || "Пост без названия",
-    [post?.caption, post?.title]
-  );
+  const title = useMemo(() => post?.title || post?.caption || "Пост без названия", [post?.caption, post?.title]);
 
   function updateField<K extends keyof PostDraft>(field: K, value: PostDraft[K]) {
     setDraft((current) => (current ? { ...current, [field]: value } : current));
@@ -83,14 +84,12 @@ export default function PostDetailScreen() {
     );
   }
 
-  function ensureCategorySelected(idValue: number) {
+  function ensureCategoryIdsSelected(categoryIds: number[]) {
     setDraft((current) =>
       current
         ? {
             ...current,
-            selectedCategoryIds: current.selectedCategoryIds.includes(idValue)
-              ? current.selectedCategoryIds
-              : [...current.selectedCategoryIds, idValue]
+            selectedCategoryIds: [...new Set([...current.selectedCategoryIds, ...categoryIds])]
           }
         : current
     );
@@ -152,7 +151,7 @@ export default function PostDetailScreen() {
       return;
     }
 
-    Alert.alert("Удалить пост?", "Эту карточку нельзя будет восстановить без backup.", [
+    Alert.alert("Удалить пост?", "Карточка исчезнет из базы, если у вас нет резервной копии.", [
       { text: "Отмена", style: "cancel" },
       {
         text: "Удалить",
@@ -177,21 +176,26 @@ export default function PostDetailScreen() {
       const nextSuggestion = suggestCategoryOffline({
         title: draft.title,
         caption: draft.caption,
+        manualTags: draft.tagsText,
         categories: categories.map((category) => category.name),
         allowNewCategory: categories.length === 0
       });
 
-      const normalizedName = normalizeSuggestedCategoryName(nextSuggestion.categoryName);
+      const normalizedNames = nextSuggestion.categoryNames.map(normalizeSuggestedCategoryName);
       setSuggestion({
         ...nextSuggestion,
-        categoryName: normalizedName
+        categoryNames: normalizedNames
       });
 
-      const categoryId = await ensureCategory(normalizedName);
-      ensureCategorySelected(categoryId);
+      if (!normalizedNames.length) {
+        return;
+      }
+
+      const categoryIds = await Promise.all(normalizedNames.map((name) => ensureCategory(name)));
+      ensureCategoryIdsSelected(categoryIds);
     } catch (error) {
       Alert.alert(
-        "Не удалось подобрать категорию",
+        "Не удалось подобрать категории",
         error instanceof Error ? error.message : "Попробуйте еще раз."
       );
     } finally {
@@ -241,7 +245,7 @@ export default function PostDetailScreen() {
               Открыть источник
             </Button>
             <Button mode={editMode ? "contained" : "outlined"} onPress={() => setEditMode(!editMode)}>
-              {editMode ? "Режим редактирования" : "Редактировать"}
+              {editMode ? "Закрыть редактор" : "Редактировать"}
             </Button>
             <Button mode="text" textColor={theme.colors.error} onPress={handleDelete}>
               Удалить
@@ -320,10 +324,7 @@ export default function PostDetailScreen() {
               </View>
 
               {suggestion ? (
-                <HelperText type="info">
-                  Подобрана категория: {suggestion.categoryName}
-                  {suggestion.reason ? ` - ${suggestion.reason}` : ""}
-                </HelperText>
+                <HelperText type="info">{suggestion.reason}</HelperText>
               ) : null}
             </>
           ) : (
@@ -337,13 +338,13 @@ export default function PostDetailScreen() {
               {post.manualTags ? <Text variant="bodySmall">Теги: {post.manualTags}</Text> : null}
               {post.notes ? (
                 <Card mode="outlined" style={styles.noteCard}>
-                  <Card.Content>
+                  <Card.Content style={styles.noteContent}>
                     <Text variant="labelLarge">Личная заметка</Text>
                     <Text variant="bodyMedium">{post.notes}</Text>
                   </Card.Content>
                 </Card>
               ) : (
-                <HelperText type="info">Заметок пока нет. Их можно добавить через редактирование.</HelperText>
+                <HelperText type="info">Заметок пока нет. Их можно добавить в режиме редактирования.</HelperText>
               )}
             </>
           )}
@@ -357,11 +358,11 @@ const styles = StyleSheet.create({
   image: {
     width: "100%",
     height: 320,
-    borderRadius: 28,
+    borderRadius: 18,
     backgroundColor: "#2A3340"
   },
   card: {
-    borderRadius: 24
+    borderRadius: 16
   },
   content: {
     gap: 14
@@ -377,6 +378,9 @@ const styles = StyleSheet.create({
     gap: 10
   },
   noteCard: {
-    borderRadius: 20
+    borderRadius: 14
+  },
+  noteContent: {
+    gap: 8
   }
 });

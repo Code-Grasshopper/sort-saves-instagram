@@ -1,14 +1,7 @@
 import { useState } from "react";
 import { FlatList, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
-import {
-  Button,
-  IconButton,
-  Menu,
-  Searchbar,
-  Text,
-  useTheme
-} from "react-native-paper";
+import { Button, IconButton, Menu, Searchbar, Text, useTheme } from "react-native-paper";
 
 import { CategoryChip } from "@/components/CategoryChip";
 import { EmptyState } from "@/components/EmptyState";
@@ -24,6 +17,18 @@ const sortLabels: Record<FeedSort, string> = {
   category: "По категории",
   author: "По автору"
 };
+
+function formatPostCount(count: number) {
+  if (count === 1) {
+    return "1 пост";
+  }
+
+  if (count >= 2 && count <= 4) {
+    return `${count} поста`;
+  }
+
+  return `${count} постов`;
+}
 
 export default function FeedScreen() {
   const router = useRouter();
@@ -71,7 +76,7 @@ export default function FeedScreen() {
           <GradientHero
             eyebrow="Локальная база"
             title="Коллекция сохраненных Instagram постов"
-            subtitle="Ищите по подписи, автору или тегам. Переключайте категории и сохраняйте только то, что действительно полезно."
+            subtitle="Ищите по подписи, автору или тегам. Переключайте категории и оставляйте в базе только действительно полезное."
           />
 
           <Searchbar
@@ -108,6 +113,7 @@ export default function FeedScreen() {
               icon={view === "grid" ? "format-list-bulleted" : "view-grid-outline"}
               onPress={() => setView(view === "grid" ? "list" : "grid")}
             />
+
             <Button mode="text" onPress={resetFilters}>
               Сбросить
             </Button>
@@ -132,7 +138,7 @@ export default function FeedScreen() {
           </ScrollView>
 
           <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-            {posts.length === 1 ? "1 пост" : `${posts.length} постов`}
+            {formatPostCount(posts.length)}
           </Text>
         </View>
       }
@@ -140,7 +146,7 @@ export default function FeedScreen() {
         loading ? null : (
           <EmptyState
             title="Коллекция пока пустая"
-            description="Добавьте первую ссылку из Instagram, либо занесите пост вручную с изображением, подписью и заметками."
+            description="Добавьте первую ссылку из Instagram или сохраните карточку вручную с изображением, подписью и заметками."
             actionLabel="Открыть добавление"
             onAction={() => router.push("/add")}
           />
@@ -166,7 +172,7 @@ const styles = StyleSheet.create({
     marginBottom: 10
   },
   search: {
-    borderRadius: 20
+    borderRadius: 14
   },
   controls: {
     flexDirection: "row",

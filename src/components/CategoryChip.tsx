@@ -34,7 +34,7 @@ export function CategoryChip({
       compact={compact}
       onPress={onPress}
       mode={selected ? "flat" : "outlined"}
-      style={{ backgroundColor, borderColor: `${category.color}88` }}
+      style={{ backgroundColor, borderColor: `${category.color}88`, borderRadius: compact ? 12 : 14 }}
       textStyle={{ color: textColor }}
     >
       {`${category.emoji} ${category.name}`}

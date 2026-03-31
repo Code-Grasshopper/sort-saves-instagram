@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
-import * as Linking from "expo-linking";
 import { useSQLiteContext } from "expo-sqlite";
-import { Button, Card, SegmentedButtons, Text, TextInput } from "react-native-paper";
+import { Button, Card, SegmentedButtons, Text } from "react-native-paper";
 
 import { GradientHero } from "@/components/GradientHero";
 import { ScreenContainer } from "@/components/ScreenContainer";
@@ -16,8 +15,6 @@ export default function SettingsScreen() {
   const bump = useDataStore((state) => state.bump);
   const themeMode = useAppSettingsStore((state) => state.themeMode);
   const setThemeMode = useAppSettingsStore((state) => state.setThemeMode);
-  const instagramAccessNote = useAppSettingsStore((state) => state.instagramAccessNote);
-  const setInstagramAccessNote = useAppSettingsStore((state) => state.setInstagramAccessNote);
   const [backupLoading, setBackupLoading] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
 
@@ -37,6 +34,7 @@ export default function SettingsScreen() {
     try {
       setImportLoading(true);
       const imported = await importBackupFromFile(db);
+
       if (imported) {
         bump();
         Alert.alert("Импорт завершен", "База заменена содержимым выбранного JSON backup.");
@@ -48,21 +46,12 @@ export default function SettingsScreen() {
     }
   }
 
-  async function openDocs(url: string) {
-    if (await Linking.canOpenURL(url)) {
-      await Linking.openURL(url);
-      return;
-    }
-
-    Alert.alert("Не удалось открыть ссылку", url);
-  }
-
   return (
     <ScreenContainer>
       <GradientHero
         eyebrow="Сервис"
-        title="Тема, резервные копии и параметры импорта"
-        subtitle="Все ключевые данные остаются локально. Сеть нужна только для превью ссылок и внешних документов."
+        title="Тема и резервные копии"
+        subtitle="Все данные хранятся локально на устройстве. Здесь можно поменять оформление и сохранить базу в JSON."
       />
 
       <Card mode="contained" style={styles.card}>
@@ -96,44 +85,13 @@ export default function SettingsScreen() {
           </Text>
         </Card.Content>
       </Card>
-
-      <Card mode="contained" style={styles.card}>
-        <Card.Content style={styles.section}>
-          <Text variant="titleMedium">Instagram API / OAuth</Text>
-          <Text variant="bodyMedium">
-            Basic Display и Instagram Login не дают обычному приложению прямой доступ к вашим Saved-постам, поэтому основной поток здесь остается ручным.
-          </Text>
-          <TextInput
-            mode="outlined"
-            label="Личная заметка по Meta app / access token"
-            value={instagramAccessNote}
-            onChangeText={setInstagramAccessNote}
-            multiline
-            numberOfLines={3}
-          />
-          <View style={styles.row}>
-            <Button
-              mode="outlined"
-              onPress={() => openDocs("https://developers.facebook.com/docs/instagram-platform")}
-            >
-              Документация Meta
-            </Button>
-            <Button
-              mode="text"
-              onPress={() => openDocs("https://docs.expo.dev/versions/latest/sdk/sharing/")}
-            >
-              Expo Sharing docs
-            </Button>
-          </View>
-        </Card.Content>
-      </Card>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 24
+    borderRadius: 16
   },
   section: {
     gap: 14

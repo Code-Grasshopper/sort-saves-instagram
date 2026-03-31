@@ -38,7 +38,7 @@ export const categoryPalette = [
 
 export const lightTheme: MD3Theme = {
   ...MD3LightTheme,
-  roundness: 18,
+  roundness: 10,
   fonts: fontConfig,
   colors: {
     ...MD3LightTheme.colors,
@@ -73,7 +73,7 @@ export const lightTheme: MD3Theme = {
 
 export const darkTheme: MD3Theme = {
   ...MD3DarkTheme,
-  roundness: 18,
+  roundness: 10,
   fonts: fontConfig,
   colors: {
     ...MD3DarkTheme.colors,

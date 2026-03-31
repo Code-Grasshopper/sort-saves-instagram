@@ -33,6 +33,9 @@ type SignalBag = {
 
 const fallbackCategoryName = "Идеи";
 const maxCategorySuggestions = 3;
+const minimumStrongScore = 8;
+const minimumWeakScore = 4;
+
 const knownTokenBreaks = [
   "samsung",
   "galaxy",
@@ -46,6 +49,8 @@ const knownTokenBreaks = [
   "pixel",
   "nothing",
   "oneplus",
+  "смартфон",
+  "телефон",
   "лайфхак",
   "фишки",
   "фишка",
@@ -312,10 +317,10 @@ function stemToken(word: string) {
 
   return normalized
     .replace(
-      /(иями|ями|ами|иями|иях|ях|его|ого|ему|ому|ыми|ими|ее|ие|ые|ой|ий|ый|ая|ое|ам|ям|ах|ях|ов|ев|ей|ом|ем|ою|ею|ую|юю|ия|ья|ье|ии|ию|ью|а|я|ы|и|е|о|у|ю|ь)$/u,
+      /(иями|ями|ами|иях|ях|его|ого|ему|ому|ыми|ими|ее|ие|ые|ой|ий|ый|ая|ое|ам|ям|ах|ях|ов|ев|ей|ом|ем|ою|ею|ую|юю|ия|ья|ье|ии|ию|ью|а|я|ы|и|е|о|у|ю|ь)$/u,
       ""
     )
-    .replace(/(ingly|ingly|ingly|ingly|ing|ers|ies|ied|er|ed|es|s)$/u, "")
+    .replace(/(ingly|ing|ers|ies|ied|er|ed|es|s)$/u, "")
     .trim();
 }
 
@@ -380,11 +385,7 @@ function matchesPhrase(text: string, phrase: string) {
 function countKeywordHits(tokens: Set<string>, hashtagTokens: Set<string>, keyword: string) {
   const normalizedKeyword = normalizeText(keyword);
 
-  if (!normalizedKeyword) {
-    return 0;
-  }
-
-  if (normalizedKeyword.includes(" ")) {
+  if (!normalizedKeyword || normalizedKeyword.includes(" ")) {
     return 0;
   }
 
@@ -479,6 +480,19 @@ function buildExistingProfile(categoryName: string): TaxonomyCategory {
   };
 }
 
+function chooseTopRanked(ranked: RankedCategory[], limit = maxCategorySuggestions, minBaseScore = minimumWeakScore) {
+  const withScore = ranked.filter((item) => item.score >= minBaseScore).sort((left, right) => right.score - left.score);
+
+  if (!withScore.length) {
+    return [];
+  }
+
+  const topScore = withScore[0].score;
+  const minScore = Math.max(minBaseScore, Math.floor(topScore * 0.45));
+
+  return withScore.filter((item) => item.score >= minScore).slice(0, limit);
+}
+
 function buildReason(categoryNames: string[], matches: string[], fallbackReason: string) {
   if (categoryNames.length > 0 && matches.length > 0) {
     return `Подобраны темы: ${categoryNames.join(", ")}. Сигналы: ${matches.slice(0, 4).join(", ")}.`;
@@ -491,54 +505,82 @@ function buildReason(categoryNames: string[], matches: string[], fallbackReason:
   return fallbackReason;
 }
 
-function chooseTopRanked(ranked: RankedCategory[], limit = maxCategorySuggestions) {
-  const withScore = ranked.filter((item) => item.score > 0).sort((left, right) => right.score - left.score);
-
-  if (!withScore.length) {
-    return [];
-  }
-
-  const topScore = withScore[0].score;
-  const minScore = Math.max(5, Math.floor(topScore * 0.45));
-
-  return withScore.filter((item) => item.score >= minScore).slice(0, limit);
-}
-
-function inferNewCategories(input: SuggestInput, signals: SignalBag): CategorySuggestion {
+function inferNewCategories(signals: SignalBag, limit: number) {
   const ranked = taxonomy.map((category) => scoreCategory(signals, category));
-  const chosen = chooseTopRanked(ranked, input.maxSuggestions ?? maxCategorySuggestions);
-
-  if (!chosen.length) {
-    return {
-      categoryNames: [fallbackCategoryName],
-      reason: "Явных сигналов мало, поэтому выбрана универсальная тема.",
-      matchedSignals: []
-    };
-  }
-
-  return {
-    categoryNames: chosen.map((item) => item.categoryName),
-    reason: buildReason(
-      chosen.map((item) => item.categoryName),
-      chosen.flatMap((item) => item.matches),
-      chosen[0].fallbackReason
-    ),
-    matchedSignals: unique(chosen.flatMap((item) => item.matches)).slice(0, 6)
-  };
+  return chooseTopRanked(ranked, limit, minimumWeakScore);
 }
 
-function matchExistingCategories(input: SuggestInput, signals: SignalBag): CategorySuggestion {
-  const ranked = input.categories.map((categoryName) => {
+function matchExistingCategories(signals: SignalBag, categories: string[], limit: number) {
+  const ranked = categories.map((categoryName) => {
     const profile = buildExistingProfile(categoryName);
     return scoreCategory(signals, profile);
   });
-  const chosen = chooseTopRanked(ranked, input.maxSuggestions ?? maxCategorySuggestions);
+
+  return chooseTopRanked(ranked, limit, minimumWeakScore);
+}
+
+function mergeRanked(existing: RankedCategory[], inferred: RankedCategory[], limit: number) {
+  const merged = new Map<string, RankedCategory>();
+
+  for (const item of [...existing, ...inferred]) {
+    const key = normalizeText(item.categoryName);
+    const current = merged.get(key);
+
+    if (!current || current.score < item.score) {
+      merged.set(key, item);
+    }
+  }
+
+  return [...merged.values()].sort((left, right) => right.score - left.score).slice(0, limit);
+}
+
+export function suggestCategoryOffline(input: SuggestInput): CategorySuggestion {
+  const limit = input.maxSuggestions ?? maxCategorySuggestions;
+  const signals = extractSignals(input);
+  const inferred = inferNewCategories(signals, limit);
+
+  if (!input.categories.length) {
+    const chosen = inferred.length ? inferred : [{ categoryName: fallbackCategoryName, score: 0, matches: [], fallbackReason: "Явных сигналов мало, поэтому выбрана универсальная тема." }];
+
+    return {
+      categoryNames: chosen.map((item) => item.categoryName),
+      reason: buildReason(
+        chosen.map((item) => item.categoryName),
+        chosen.flatMap((item) => item.matches),
+        chosen[0].fallbackReason
+      ),
+      matchedSignals: unique(chosen.flatMap((item) => item.matches)).slice(0, 6)
+    };
+  }
+
+  const existing = matchExistingCategories(signals, input.categories, limit);
+  const strongExisting = existing.filter((item) => item.score >= minimumStrongScore);
+  const hasComplementaryInference = inferred.some(
+    (item) =>
+      item.score >= minimumStrongScore &&
+      !strongExisting.some((existingItem) => normalizeText(existingItem.categoryName) === normalizeText(item.categoryName))
+  );
+  const shouldAddNew =
+    input.allowNewCategory ||
+    !strongExisting.length ||
+    hasComplementaryInference ||
+    (inferred[0]?.score ?? 0) > ((strongExisting[0]?.score ?? 0) + 2);
+
+  const chosen = shouldAddNew
+    ? mergeRanked(strongExisting, inferred, limit)
+    : strongExisting.slice(0, limit);
 
   if (!chosen.length) {
+    const fallback = inferred.length ? inferred : [{ categoryName: fallbackCategoryName, score: 0, matches: [], fallbackReason: "Явных сигналов мало, поэтому выбрана универсальная тема." }];
+
     return {
-      categoryNames: [],
-      reason: "Явных совпадений с текущими категориями не нашлось.",
-      matchedSignals: []
+      categoryNames: fallback.map((item) => item.categoryName),
+      reason: buildReason(
+        fallback.map((item) => item.categoryName),
+        fallback.flatMap((item) => item.matches),
+        fallback[0].fallbackReason
+      ),
+      matchedSignals: unique(fallback.flatMap((item) => item.matches)).slice(0, 6)
     };
   }
 
@@ -551,14 +593,4 @@ function matchExistingCategories(input: SuggestInput, signals: SignalBag): Categ
     ),
     matchedSignals: unique(chosen.flatMap((item) => item.matches)).slice(0, 6)
   };
-}
-
-export function suggestCategoryOffline(input: SuggestInput): CategorySuggestion {
-  const signals = extractSignals(input);
-
-  if (input.allowNewCategory || input.categories.length === 0) {
-    return inferNewCategories(input, signals);
-  }
-
-  return matchExistingCategories(input, signals);
 }

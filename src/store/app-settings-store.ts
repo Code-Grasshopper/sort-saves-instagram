@@ -7,11 +7,9 @@ import type { ThemeMode } from "@/types/models";
 type AppSettingsState = {
   onboarded: boolean;
   themeMode: ThemeMode;
-  instagramAccessNote: string;
   hydrated: boolean;
   completeOnboarding: () => void;
   setThemeMode: (themeMode: ThemeMode) => void;
-  setInstagramAccessNote: (value: string) => void;
   setHydrated: (value: boolean) => void;
 };
 
@@ -20,11 +18,9 @@ export const useAppSettingsStore = create<AppSettingsState>()(
     (set) => ({
       onboarded: false,
       themeMode: "system",
-      instagramAccessNote: "",
       hydrated: false,
       completeOnboarding: () => set({ onboarded: true }),
       setThemeMode: (themeMode) => set({ themeMode }),
-      setInstagramAccessNote: (instagramAccessNote) => set({ instagramAccessNote }),
       setHydrated: (hydrated) => set({ hydrated })
     }),
     {
